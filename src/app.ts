@@ -18,6 +18,8 @@ const INFO_PAGE = 'https://tonytang.dev/mcp/';
 export type Env = {
   ANALYTICS: Pick<AnalyticsEngineDataset, 'writeDataPoint'>;
   RATE_LIMIT: Pick<RateLimit, 'limit'>;
+  /** The token the ChatGPT dashboard issues to prove this domain is ours. Public by design. */
+  OPENAI_APPS_CHALLENGE?: string;
 };
 
 const CORS = {
@@ -63,6 +65,9 @@ export function makeApp(getContent: () => Promise<Content>, getLessonText: GetLe
       const { pathname } = new URL(request.url);
       if (pathname === '/') return Response.redirect(INFO_PAGE, 302);
       if (pathname === '/icon.png') return icon(request);
+      if (pathname === '/.well-known/openai-apps-challenge' && env.OPENAI_APPS_CHALLENGE) {
+        return new Response(env.OPENAI_APPS_CHALLENGE, { headers: { 'Content-Type': 'text/plain' } });
+      }
       if (pathname !== '/mcp') return new Response('Not found', { status: 404 });
       if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
       return withCors(await endpoint(request, env));

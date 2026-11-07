@@ -13,7 +13,11 @@ import type { Locale } from './documents';
 
 export const CARD_URI = 'ui://tonytang/profile-card.html';
 export const CARD_MIME_TYPE = 'text/html;profile=mcp-app';
-export const CARD_META = { ui: { prefersBorder: true, csp: { connectDomains: [], resourceDomains: [] } } };
+/** The ChatGPT origin goes in OpenAI's alias: Claude refuses to render a card whose ui.domain isn't in its own format. */
+export const CARD_META = {
+  ui: { prefersBorder: true, csp: { connectDomains: [], resourceDomains: [] } },
+  'openai/widgetDomain': 'https://mcp.tonytang.dev',
+};
 
 const VIDEOS_URL = 'https://tonytang.dev/videos/';
 

@@ -148,6 +148,13 @@ describe('profile card', () => {
     expect(resource._meta.ui.prefersBorder).toBe(true);
   });
 
+  test('the card names its ChatGPT origin without a ui.domain, which Claude would refuse', async () => {
+    const { result } = await message(await app().fetch(legacyCall('resources/read', { uri: CARD }), env));
+    const [resource] = result.contents;
+    expect(resource._meta['openai/widgetDomain']).toBe('https://mcp.tonytang.dev');
+    expect(resource._meta.ui.domain).toBeUndefined();
+  });
+
   test('get_profile keeps its full text and adds what the card shows', async () => {
     const { text, structuredContent } = await callTool('get_profile', {});
     const { card, ...full } = structuredContent;
@@ -340,6 +347,19 @@ describe('other paths', () => {
     expect(read.headers.get('access-control-allow-origin')).toBe('*');
     const write = await app().fetch(new Request('https://mcp.tonytang.dev/icon.png', { method: 'POST' }), env);
     expect(write.status).toBe(405);
+  });
+
+  test('the ChatGPT domain challenge answers with its token as plain text', async () => {
+    const challenge = new Request('https://mcp.tonytang.dev/.well-known/openai-apps-challenge');
+    const response = await app().fetch(challenge, { ...env, OPENAI_APPS_CHALLENGE: 'token-123' });
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/plain');
+    expect(await response.text()).toBe('token-123');
+  });
+
+  test('with no token set, the domain challenge is not found', async () => {
+    const challenge = new Request('https://mcp.tonytang.dev/.well-known/openai-apps-challenge');
+    expect((await app().fetch(challenge, env)).status).toBe(404);
   });
 
   test('the server advertises the icon on its own origin first', async () => {

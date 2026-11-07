@@ -148,7 +148,7 @@ describe('profile card', () => {
     expect(resource._meta.ui.prefersBorder).toBe(true);
   });
 
-  test('get_profile keeps its full text and adds only what the card shows', async () => {
+  test('get_profile keeps its full text and adds what the card shows', async () => {
     const { text, structuredContent } = await callTool('get_profile', {});
     const { card, ...full } = structuredContent;
     expect(full).toEqual(JSON.parse(text));

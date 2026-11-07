@@ -3,13 +3,12 @@
  * Tang. No login, no LLM, and no stored questions.
  */
 import { Effect } from 'effect';
-import { FetchHttpClient } from 'effect/http';
+import { FetchHttpClient, type HttpClient } from 'effect/http';
 import { makeApp } from './app';
 import { makeContentStore } from './content';
 
 const store = makeContentStore();
-const getContent = () => Effect.runPromise(store.get.pipe(Effect.provide(FetchHttpClient.layer)));
+const run = <A, E>(effect: Effect.Effect<A, E, HttpClient.HttpClient>) =>
+  Effect.runPromise(effect.pipe(Effect.provide(FetchHttpClient.layer)));
 
-const getLessonText = (page: string) => Effect.runPromise(store.lessonText(page).pipe(Effect.provide(FetchHttpClient.layer)));
-
-export default makeApp(getContent, getLessonText);
+export default makeApp(() => run(store.get), (page) => run(store.lessonText(page)));

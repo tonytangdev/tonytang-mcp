@@ -36,8 +36,8 @@ function start(hostCapabilities: object = { openLinks: {} }, hostContext: object
   fromHost({ id, result: { protocolVersion: '2026-01-26', hostInfo: { name: 'host', version: '1' }, hostCapabilities, hostContext } });
 }
 
-const showCard = (structuredContent: object = card) =>
-  fromHost({ method: 'ui/notifications/tool-result', params: { content: [], structuredContent } });
+const showCard = (shown: object = card) =>
+  fromHost({ method: 'ui/notifications/tool-result', params: { content: [], structuredContent: { name: 'Full profile', card: shown } } });
 
 const text = (selector: string) => [...document.querySelectorAll(selector)].map((e) => e.textContent);
 
@@ -51,8 +51,8 @@ describe('profile card', () => {
   test('it introduces itself to the host, then says it is ready', () => {
     start();
     expect(named('ui/initialize')[0]?.params).toEqual({
-      appInfo: { name: 'Tony Tang profile card', version: '1.1.0' },
-      appCapabilities: {},
+      appInfo: { name: 'Tony Tang profile card', version: '1.0.0' },
+      appCapabilities: { availableDisplayModes: ['inline'] },
       protocolVersion: '2026-01-26',
     });
     expect(named('ui/notifications/initialized')).toHaveLength(1);
@@ -165,7 +165,7 @@ describe('profile card', () => {
 
   test('messages from anything but the host are ignored', () => {
     start();
-    fromHost({ method: 'ui/notifications/tool-result', params: { structuredContent: card } }, {});
+    fromHost({ method: 'ui/notifications/tool-result', params: { structuredContent: { card } } }, {});
     expect(document.querySelector('main')?.textContent).toBe('');
   });
 });

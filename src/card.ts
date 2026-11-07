@@ -1,13 +1,14 @@
 /**
  * The profile card: what hosts with interactive UI show beside get_profile.
  * Everything it needs is in this file's HTML, and it declares no outside
- * domains, so showing it contacts nothing and the privacy policy holds.
+ * domains, so it contacts nothing of its own and the privacy policy holds. Its
+ * only outside input is the font CSS a host chooses to hand it.
  *
  * Host colours and fonts carry the UI, with the brand as an accent: that's
  * what both Claude's and ChatGPT's design rules ask for. The bridge is written
  * by hand because the official client adds some 660 KB for these few messages.
  */
-import type { Content } from './content';
+import { cvPage, type Content } from './content';
 import type { Locale } from './documents';
 
 export const CARD_URI = 'ui://tonytang/profile-card.html';
@@ -23,13 +24,13 @@ const LABELS: Record<Locale, { career: string; website: string; videos: string }
 
 /** What the card shows of a profile. The full profile stays in the tool's text. */
 export function profileCard(profile: Content['profile'][Locale], lang: Locale) {
-  const { website, course, cv, github } = profile.links;
+  const { website, course, github } = profile.links;
   const labels = LABELS[lang];
   const links = [
     { label: labels.website, url: website },
     { label: labels.videos, url: VIDEOS_URL },
     { label: 'Learn Effect', url: course },
-    { label: 'CV', url: cv },
+    { label: 'CV', url: cvPage(lang) },
     { label: 'GitHub', url: github },
   ];
   return {
@@ -121,7 +122,7 @@ function onMessage({ id, method, params, result }) {
     applyHost(result.hostContext ?? {});
     send({ method: 'ui/notifications/initialized' });
   } else if (method === 'ui/notifications/tool-result') {
-    if (params?.structuredContent) render(params.structuredContent);
+    if (params?.structuredContent?.card) render(params.structuredContent.card);
   } else if (method === 'ui/notifications/host-context-changed') {
     applyHost(params ?? {});
     reportSize();
@@ -141,8 +142,8 @@ send({
   id: initializeId,
   method: 'ui/initialize',
   params: {
-    appInfo: { name: 'Tony Tang profile card', version: '1.1.0' },
-    appCapabilities: {},
+    appInfo: { name: 'Tony Tang profile card', version: '1.0.0' },
+    appCapabilities: { availableDisplayModes: ['inline'] },
     protocolVersion: '2026-01-26',
   },
 });
@@ -172,7 +173,7 @@ ol { list-style: none; margin-top: 0.25rem; }
 .role { display: grid; grid-template-columns: 6.5rem 1fr; gap: 0.75rem; padding: 0.15rem 0; font-size: 0.9rem; }
 nav { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; margin-top: 0.9rem; font-size: 0.9rem; }
 a { color: inherit; text-decoration-color: var(--accent); text-decoration-thickness: 2px; text-underline-offset: 3px; }
-a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 3px; }
 @media (max-width: 26rem) { .role { grid-template-columns: 1fr; gap: 0; padding: 0.3rem 0; } }
 `;
 

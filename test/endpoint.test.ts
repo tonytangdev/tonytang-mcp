@@ -113,6 +113,11 @@ describe('both protocol eras', () => {
     expect(JSON.parse(result.content[0].text).name).toBe('Tony Tang');
   });
 
+  test('a 2025 client lists exactly the three tools', async () => {
+    const { result } = await message(await app().fetch(legacyCall('tools/list', {}), env));
+    expect(result.tools.map((tool: { name: string }) => tool.name).sort()).toEqual(['fetch', 'get_profile', 'search']);
+  });
+
   test('a 2026 client lists exactly the three tools', async () => {
     const { result } = await message(await app().fetch(modernCall('tools/list', {}), env));
     expect(result.tools.map((t: { name: string }) => t.name).sort()).toEqual(['fetch', 'get_profile', 'search']);
@@ -145,10 +150,11 @@ describe('profile card', () => {
 
   test('get_profile keeps its full text and adds only what the card shows', async () => {
     const { text, structuredContent } = await callTool('get_profile', {});
-    const profile = JSON.parse(text);
-    expect(profile.cv).toBe('# The CV');
-    expect(profile.timeline[0].lesson).toBe('A long story.');
-    expect(structuredContent).toEqual({
+    const { card, ...full } = structuredContent;
+    expect(full).toEqual(JSON.parse(text));
+    expect(full.cv).toBe('# The CV');
+    expect(full.timeline[0].lesson).toBe('A long story.');
+    expect(card).toEqual({
       lang: 'en',
       name: 'Tony Tang',
       role: 'Head of Engineering',
@@ -159,14 +165,18 @@ describe('profile card', () => {
         { label: 'Website', url: 'https://tonytang.dev/' },
         { label: 'Videos', url: 'https://tonytang.dev/videos/' },
         { label: 'Learn Effect', url: 'https://learn-effect-ts.tonytang.dev' },
+        { label: 'CV', url: 'https://cv.tonytang.dev/' },
       ],
     });
   });
 
   test('the card speaks French when asked', async () => {
     const { structuredContent } = await callTool('get_profile', { lang: 'fr' });
-    expect(structuredContent.careerHeading).toBe('Parcours');
-    expect(structuredContent.links.map((l: { label: string }) => l.label)).toEqual(['Vidéos']);
+    expect(structuredContent.card.careerHeading).toBe('Parcours');
+    expect(structuredContent.card.links).toEqual([
+      { label: 'Vidéos', url: 'https://tonytang.dev/videos/' },
+      { label: 'CV', url: 'https://cv.tonytang.dev/fr/' },
+    ]);
   });
 });
 
@@ -323,6 +333,13 @@ describe('other paths', () => {
     expect(response.headers.get('content-type')).toBe('image/png');
     const bytes = new Uint8Array(await response.arrayBuffer());
     expect([...bytes.slice(1, 4)].map((b) => String.fromCharCode(b)).join('')).toBe('PNG');
+  });
+
+  test('web hosts can read the icon, which is only ever fetched', async () => {
+    const read = await app().fetch(new Request('https://mcp.tonytang.dev/icon.png'), env);
+    expect(read.headers.get('access-control-allow-origin')).toBe('*');
+    const write = await app().fetch(new Request('https://mcp.tonytang.dev/icon.png', { method: 'POST' }), env);
+    expect(write.status).toBe(405);
   });
 
   test('the server advertises the icon on its own origin first', async () => {

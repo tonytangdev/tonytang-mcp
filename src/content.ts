@@ -38,6 +38,8 @@ const CV: Record<Locale, { file: string; page: string; title: string; summary: s
   },
 };
 
+export const cvPage = (lang: Locale) => CV[lang].page;
+
 const Profile = Schema.Struct({
   name: Schema.String,
   role: Schema.String,
@@ -74,6 +76,9 @@ export type Content = {
   profile: SiteFile['profile'];
   documents: Document[];
 };
+
+/** A lesson's full text from the url of its page; nothing when it can't be read. */
+export type GetLessonText = (page: string) => Promise<string | undefined>;
 
 export class ContentUnavailable extends Data.TaggedError('ContentUnavailable')<{ readonly cause: unknown }> {}
 

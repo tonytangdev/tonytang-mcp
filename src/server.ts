@@ -1,12 +1,13 @@
 /**
- * The MCP server: three read-only tools over public content. Descriptions say
+ * The MCP server: three read-only tools over public content, and the card
+ * get_profile shows in hosts with interactive UI. Descriptions say
  * what each tool does and when to use it, nothing promotional: assistants pick
  * tools from them, and the app directories reject sales copy.
  */
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { CARD_HTML, CARD_META, CARD_MIME_TYPE, CARD_URI, profileCard } from './card';
-import type { Content } from './content';
+import type { Content, GetLessonText } from './content';
 import { DEFAULT_LOCALE, DOCUMENT_TYPES, LOCALES } from './documents';
 import { DEFAULT_LIMIT, getDocument, search, withText } from './search';
 
@@ -28,7 +29,7 @@ const failure = (text: string) => ({ content: [{ type: 'text' as const, text }],
 const LESSON_UNAVAILABLE = 'The full lesson could not be read just now; this is only its summary, and the url has the rest.';
 const UNAVAILABLE = 'The content is temporarily unavailable. Try again shortly, or see https://tonytang.dev/.';
 
-export function makeServer(getContent: () => Promise<Content>, getLessonText: (page: string) => Promise<string | undefined>) {
+export function makeServer(getContent: () => Promise<Content>, getLessonText: GetLessonText) {
   /** Runs a tool on the current content; loading failures are reported to the assistant without their details. */
   const withContent = async <R>(tool: (content: Content) => R | Promise<R>) => {
     let content: Content;
@@ -68,10 +69,11 @@ export function makeServer(getContent: () => Promise<Content>, getLessonText: (p
       _meta: { ui: { resourceUri: CARD_URI } },
     },
     ({ lang = DEFAULT_LOCALE }) =>
-      withContent((content) => ({
-        ...json({ ...content.profile[lang], cv: getDocument(content.documents, { id: 'cv', lang })?.text ?? null }),
-        structuredContent: profileCard(content.profile[lang], lang),
-      })),
+      withContent((content) => {
+        const profile = { ...content.profile[lang], cv: getDocument(content.documents, { id: 'cv', lang })?.text ?? null };
+        // The full profile too: a client may read this instead of the text.
+        return { ...json(profile), structuredContent: { ...profile, card: profileCard(content.profile[lang], lang) } };
+      }),
   );
 
   server.registerResource('Profile card', CARD_URI, { mimeType: CARD_MIME_TYPE, _meta: CARD_META }, async () => ({
@@ -83,7 +85,7 @@ export function makeServer(getContent: () => Promise<Content>, getLessonText: (p
     {
       ...readOnlyTool("Search Tony Tang's content"),
       description:
-        "Search the work of Tony Tang, the software engineer behind tonytang.dev: articles, video transcripts, video series, CV, course summary, course lessons and the tools he uses. Results are keyword matches, each in the requested language where it exists. Returns matches with an id for fetch and a link, plus the matching course lesson on videos that have one. Shows up to three lessons unless type is lesson. Leave query empty to list the newest content, optionally of one type.",
+        "Search the work of Tony Tang, the software engineer behind tonytang.dev: articles, video transcripts, video series, CV, course summary, course lessons and the tools he uses. Results are keyword matches, each in the requested language where it exists. Returns matches with an id for fetch and a link. Shows up to three lessons unless type is lesson. Leave query empty to list the newest content, optionally of one type.",
       inputSchema: z.object({
         query: z.string().max(MAX_QUERY_CHARS).optional().describe('Keywords, in English or French.'),
         type: z.enum(DOCUMENT_TYPES).optional().describe('Only this kind of content.'),

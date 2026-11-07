@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tonytang-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // Served at https://mcp.tonytang.dev/mcp (Cloudflare creates the DNS record).
+  "routes": [{ "pattern": "mcp.tonytang.dev", "custom_domain": true }],
+  "workers_dev": false,
+  // Off on purpose: Workers Logs would keep request details, and the privacy
+  // policy promises only the events in ANALYTICS.
+  "observability": { "enabled": false },
+  // Generous, because each hosted assistant's users share a few addresses.
+  "ratelimits": [
+    { "name": "RATE_LIMIT", "namespace_id": "2001", "simple": { "limit": 120, "period": 60 } }
+  ],
+  "analytics_engine_datasets": [{ "binding": "ANALYTICS", "dataset": "mcp_usage" }]
+}

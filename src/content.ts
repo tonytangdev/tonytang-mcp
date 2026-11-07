@@ -64,6 +64,7 @@ const SiteFile = Schema.Struct({
       published: Schema.optional(Schema.String),
       text: Schema.String,
       note: Schema.optional(Schema.String),
+      lesson: Schema.optional(Schema.Struct({ title: Schema.String, url: Schema.String })),
     }),
   ),
 });
@@ -114,6 +115,35 @@ const courseDocument = (text: string): Document => {
   };
 };
 
+const PAID_LESSON_NOTE = 'The text is free to read; the narrated player is part of the paid course.';
+
+/** One document per lesson in the course index: searchable by title, summary and chapter. */
+const lessonDocuments = (index: string): Document[] => {
+  const lessons: Document[] = [];
+  let chapter: { name: string; paid: boolean } | undefined;
+  for (const line of index.split('\n')) {
+    if (line.startsWith('## ')) {
+      const heading = line.match(/^## (Chapter \d+: .+) \((free|paid)\)$/);
+      chapter = heading?.[1] ? { name: heading[1], paid: heading[2] === 'paid' } : undefined;
+      continue;
+    }
+    const lesson = line.match(/^- \[(.+)\]\((.+\/lesson\/([^/)]+))\.md\): (.+)$/);
+    if (!chapter || !lesson) continue;
+    const [, title = '', url = '', slug = '', summary = ''] = lesson;
+    lessons.push({
+      id: `lesson:${slug}`,
+      lang: 'en',
+      type: 'lesson',
+      title,
+      summary,
+      url,
+      text: `${chapter.name}. ${summary}`,
+      ...(chapter.paid && { note: PAID_LESSON_NOTE }),
+    });
+  }
+  return lessons;
+};
+
 export function makeContentStore() {
   const cache = new Map<string, { value: unknown; fetchedAt: number }>();
 
@@ -149,10 +179,20 @@ export function makeContentStore() {
         ...site.documents,
         ...(cvEn === undefined ? [] : [cvDocument('en', cvEn)]),
         ...(cvFr === undefined ? [] : [cvDocument('fr', cvFr)]),
-        ...(course === undefined ? [] : [courseDocument(course)]),
+        ...(course === undefined ? [] : [courseDocument(course), ...lessonDocuments(course)]),
       ],
     } satisfies Content;
   }).pipe(Effect.mapError((cause) => new ContentUnavailable({ cause })));
 
-  return { get };
+  /**
+   * A lesson's full text, from the Markdown copy beside its page. Read on
+   * demand, not with the rest, to spare 66 requests on every refresh. Callers
+   * pass the url of a document from `get`, never one from a tool's input.
+   */
+  const lessonText = (page: string) => {
+    const file = `${page}.md`;
+    return optional(file, fetchText(file));
+  };
+
+  return { get, lessonText };
 }

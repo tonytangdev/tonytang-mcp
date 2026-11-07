@@ -52,7 +52,8 @@ let initializeId;
 let canOpenLinks = false;
 
 const send = (message) => window.parent.postMessage({ jsonrpc: '2.0', ...message }, '*');
-const reportSize = () => send({ method: 'ui/notifications/size-changed', params: { height: Math.ceil(root.scrollHeight) } });
+const reportSize = () =>
+  send({ method: 'ui/notifications/size-changed', params: { height: Math.ceil(document.body.getBoundingClientRect().height) } });
 
 function element(tag, text, className) {
   const node = document.createElement(tag);
@@ -132,6 +133,8 @@ function onMessage({ id, method, params, result }) {
 window.addEventListener('message', (event) => {
   if (event.source === window.parent && event.data?.jsonrpc === '2.0') onMessage(event.data);
 });
+
+if (globalThis.ResizeObserver) new ResizeObserver(reportSize).observe(document.body);
 
 initializeId = nextId++;
 send({

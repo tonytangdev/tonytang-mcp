@@ -130,11 +130,31 @@ describe('profile card', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark');
   });
 
-  test('it reports its height once it has content', () => {
+  test('it reports the height of its content, not of the frame it was given', () => {
+    start();
+    Object.defineProperty(document.documentElement, 'scrollHeight', { configurable: true, value: 420 });
+    document.body.getBoundingClientRect = () => ({ height: 292.4 }) as DOMRect;
+    showCard();
+    expect(named('ui/notifications/size-changed').at(-1)?.params).toEqual({ height: 293 });
+  });
+
+  test('it reports its height again when its content reflows', () => {
+    let reflow = () => {};
+    const original = globalThis.ResizeObserver;
+    globalThis.ResizeObserver = class {
+      constructor(callback: () => void) {
+        reflow = callback;
+      }
+      observe() {}
+      disconnect() {}
+      unobserve() {}
+    } as unknown as typeof ResizeObserver;
     start();
     showCard();
-    expect(named('ui/notifications/size-changed').length).toBeGreaterThan(0);
-    expect(named('ui/notifications/size-changed')[0]?.params.height).toEqual(expect.any(Number));
+    document.body.getBoundingClientRect = () => ({ height: 500 }) as DOMRect;
+    reflow();
+    globalThis.ResizeObserver = original;
+    expect(named('ui/notifications/size-changed').at(-1)?.params).toEqual({ height: 500 });
   });
 
   test('it answers the requests a host can send it', () => {

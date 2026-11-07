@@ -10,4 +10,6 @@ import { makeContentStore } from './content';
 const store = makeContentStore();
 const getContent = () => Effect.runPromise(store.get.pipe(Effect.provide(FetchHttpClient.layer)));
 
-export default makeApp(getContent);
+const getLessonText = (page: string) => Effect.runPromise(store.lessonText(page).pipe(Effect.provide(FetchHttpClient.layer)));
+
+export default makeApp(getContent, getLessonText);

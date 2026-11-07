@@ -10,6 +10,8 @@
 import { DEFAULT_LOCALE, type Document, type DocumentType, type Locale } from './documents';
 
 export const DEFAULT_LIMIT = 10;
+/** Lessons in one mixed search: 66 of them could otherwise fill it with near-duplicates of each other. */
+const MAX_LESSONS = 3;
 /** Cap on a document's text, in characters: stays well under what clients accept in one result. */
 export const MAX_TEXT_CHARS = 100_000;
 const SNIPPET_CHARS = 240;
@@ -94,6 +96,11 @@ export type SearchRequest = {
   limit?: number | undefined;
 };
 
+const capLessons = <R extends { variants: Document[] }>(ranked: R[]) => {
+  let lessons = 0;
+  return ranked.filter(({ variants }) => variants[0]?.type !== 'lesson' || ++lessons <= MAX_LESSONS);
+};
+
 export function search(documents: Document[], request: SearchRequest) {
   const { type, lang = DEFAULT_LOCALE, limit = DEFAULT_LIMIT } = request;
   const allTerms = [...new Set(words(request.query ?? ''))];
@@ -109,22 +116,25 @@ export function search(documents: Document[], request: SearchRequest) {
           .map((variants) => ({ variants, rank: Math.max(...variants.map((v) => score(v, terms))) }))
           .filter(({ rank }) => rank > 0);
   ranked.sort((a, b) => b.rank - a.rank);
+  const shown = type ? ranked : capLessons(ranked);
 
-  const results = ranked.slice(0, limit).flatMap(({ variants }) => {
+  const results = shown.slice(0, limit).flatMap(({ variants }) => {
     const document = pick(variants, lang);
     if (!document) return [];
     const { text: _text, ...rest } = document;
     return [{ ...rest, summary: shorten(rest.summary), snippet: snippet(document, terms) }];
   });
-  return { results, total: ranked.length };
+  return { results, total: shown.length };
 }
+
+/** A document as `fetch` returns it: its text, capped. */
+export const withText = <D extends Document>(document: D, text: string) => ({
+  ...document,
+  text: text.slice(0, MAX_TEXT_CHARS),
+  truncated: text.length > MAX_TEXT_CHARS,
+});
 
 export function getDocument(documents: Document[], request: { id: string; lang?: Locale | undefined }) {
   const document = pick(documents.filter((d) => d.id === request.id), request.lang ?? DEFAULT_LOCALE);
-  if (!document) return undefined;
-  return {
-    ...document,
-    text: document.text.slice(0, MAX_TEXT_CHARS),
-    truncated: document.text.length > MAX_TEXT_CHARS,
-  };
+  return document && withText(document, document.text);
 }

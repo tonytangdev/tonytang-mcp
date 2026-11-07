@@ -7,7 +7,7 @@ import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import type { Content } from './content';
 import { DEFAULT_LOCALE, DOCUMENT_TYPES, LOCALES } from './documents';
-import { DEFAULT_LIMIT, getDocument, search } from './search';
+import { DEFAULT_LIMIT, getDocument, search, withText } from './search';
 
 const VERSION = '1.0.0';
 const MAX_QUERY_CHARS = 200;
@@ -24,11 +24,12 @@ const READ_ONLY = { readOnlyHint: true, destructiveHint: false, idempotentHint: 
 const json = (value: unknown) => ({ content: [{ type: 'text' as const, text: JSON.stringify(value) }] });
 const failure = (text: string) => ({ content: [{ type: 'text' as const, text }], isError: true });
 
+const LESSON_UNAVAILABLE = 'The full lesson could not be read just now; this is only its summary, and the url has the rest.';
 const UNAVAILABLE = 'The content is temporarily unavailable. Try again shortly, or see https://tonytang.dev/.';
 
-export function makeServer(getContent: () => Promise<Content>) {
+export function makeServer(getContent: () => Promise<Content>, getLessonText: (page: string) => Promise<string | undefined>) {
   /** Runs a tool on the current content; loading failures are reported to the assistant without their details. */
-  const withContent = async <R>(tool: (content: Content) => R) => {
+  const withContent = async <R>(tool: (content: Content) => R | Promise<R>) => {
     let content: Content;
     try {
       content = await getContent();
@@ -72,7 +73,7 @@ export function makeServer(getContent: () => Promise<Content>) {
     {
       ...readOnlyTool("Search Tony Tang's content"),
       description:
-        "Search the work of Tony Tang, the software engineer behind tonytang.dev: articles, video transcripts, video series, CV, course summary and the tools he uses. Results are keyword matches, each in the requested language where it exists. Returns matches with an id for fetch and a link. Leave query empty to list the newest content, optionally of one type.",
+        "Search the work of Tony Tang, the software engineer behind tonytang.dev: articles, video transcripts, video series, CV, course summary, course lessons and the tools he uses. Results are keyword matches, each in the requested language where it exists. Returns matches with an id for fetch and a link, plus the matching course lesson on videos that have one. Shows up to three lessons unless type is lesson. Leave query empty to list the newest content, optionally of one type.",
       inputSchema: z.object({
         query: z.string().max(MAX_QUERY_CHARS).optional().describe('Keywords, in English or French.'),
         type: z.enum(DOCUMENT_TYPES).optional().describe('Only this kind of content.'),
@@ -92,9 +93,13 @@ export function makeServer(getContent: () => Promise<Content>) {
       inputSchema: z.object({ id: z.string().max(MAX_QUERY_CHARS).describe('The id from a search result.'), lang: langInput }),
     },
     (request) =>
-      withContent((content) => {
+      withContent(async (content) => {
         const document = getDocument(content.documents, request);
-        return document ? json(document) : failure(`No document with id "${request.id}". Use search to find one.`);
+        if (!document) return failure(`No document with id "${request.id}". Use search to find one.`);
+        if (document.type !== 'lesson') return json(document);
+        const text = await getLessonText(document.url);
+        if (text !== undefined) return json(withText(document, text));
+        return json({ ...document, note: [document.note, LESSON_UNAVAILABLE].filter(Boolean).join(' ') });
       }),
   );
 

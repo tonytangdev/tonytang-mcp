@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, test } from 'vitest';
 import { makeApp, type Env } from '../src/app';
 import type { Content } from '../src/content';
 
+const LESSON_PAGE = 'https://learn-effect-ts.tonytang.dev/lesson/retrying';
+
 const content: Content = {
   profile: {
     en: { name: 'Tony Tang', role: 'Head of Engineering', headline: 'H', lead: "I'm Tony.", story: ['Story.'], timeline: [], links: { email: 'tony@tonytang.dev' } },
@@ -11,6 +13,7 @@ const content: Content = {
     { id: 'article:zero-downtime', lang: 'en', type: 'article', title: 'Zero downtime migration', summary: 'S', url: 'https://tonytang.dev/articles/zero-downtime/', text: 'How we moved millions of records.' },
     { id: 'video:cache', lang: 'en', type: 'video', title: 'Cache stampede', summary: 'S', url: 'https://tonytang.dev/videos/cache/', text: 'Captions.', note: 'Auto-generated captions.' },
     { id: 'cv', lang: 'en', type: 'cv', title: 'CV', summary: 'S', url: 'https://cv.tonytang.dev/', text: '# The CV' },
+    { id: 'lesson:retrying', lang: 'en', type: 'lesson', title: 'Retrying on failure', summary: 'Retry well.', url: LESSON_PAGE, text: 'Chapter 8. Retry well.', note: 'Paid player.' },
   ],
 };
 
@@ -29,7 +32,12 @@ beforeEach(() => {
   };
 });
 
-const app = (getContent: () => Promise<Content> = async () => content) => makeApp(getContent);
+const lessonText = async (page: string) => (page === LESSON_PAGE ? '# Retrying, in full' : undefined);
+
+const app = (
+  getContent: () => Promise<Content> = async () => content,
+  getLessonText: (page: string) => Promise<string | undefined> = lessonText,
+) => makeApp(getContent, getLessonText);
 
 const LEGACY = '2025-06-18';
 const MODERN = '2026-07-28';
@@ -69,8 +77,8 @@ const modernCall = (method: string, params: object, name?: string) =>
 const legacyCall = (method: string, params: object) =>
   post({ jsonrpc: '2.0', id: 1, method, params }, { 'mcp-protocol-version': LEGACY });
 
-async function callTool(name: string, args: object, getContent?: () => Promise<Content>) {
-  const response = await app(getContent).fetch(modernCall('tools/call', { name, arguments: args }, name), env);
+async function callTool(name: string, args: object, getContent?: () => Promise<Content>, getLessonText?: (page: string) => Promise<string | undefined>) {
+  const response = await app(getContent, getLessonText).fetch(modernCall('tools/call', { name, arguments: args }, name), env);
   const { result } = await message(response);
   return { isError: result.isError === true, text: result.content[0].text as string };
 }
@@ -132,6 +140,26 @@ describe('tools', () => {
   test('fetch returns the full text, its link and any caveat', async () => {
     const document = await toolJson('fetch', { id: 'video:cache' });
     expect(document).toMatchObject({ text: 'Captions.', url: 'https://tonytang.dev/videos/cache/', note: 'Auto-generated captions.' });
+  });
+
+  test('fetch returns a lesson in full, with its link and caveat', async () => {
+    const lesson = JSON.parse((await callTool('fetch', { id: 'lesson:retrying' })).text);
+    expect(lesson).toMatchObject({ text: '# Retrying, in full', url: LESSON_PAGE, note: 'Paid player.', truncated: false });
+  });
+
+  test('when a lesson cannot be read, fetch gives its summary and says so', async () => {
+    const { isError, text } = await callTool('fetch', { id: 'lesson:retrying' }, undefined, async () => undefined);
+    expect(isError).toBe(false);
+    const lesson = JSON.parse(text);
+    expect(lesson.text).toBe('Chapter 8. Retry well.');
+    expect(lesson.note).toBe('Paid player. The full lesson could not be read just now; this is only its summary, and the url has the rest.');
+  });
+
+  test('a video points to the lesson that teaches its subject', async () => {
+    const lesson = { title: 'Retrying on failure', url: LESSON_PAGE };
+    const documents = content.documents.map((d) => (d.id === 'video:cache' ? { ...d, lesson } : d));
+    const { results } = JSON.parse((await callTool('search', { query: 'cache' }, async () => ({ ...content, documents }))).text);
+    expect(results[0].lesson).toEqual(lesson);
   });
 
   test('fetch on an unknown id is a tool error that says what to do', async () => {

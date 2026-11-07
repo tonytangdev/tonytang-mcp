@@ -35,8 +35,8 @@ const withCors = (response: Response) => {
   return mutable;
 };
 
-export function makeApp(getContent: () => Promise<Content>) {
-  const mcp = createMcpHandler(() => makeServer(getContent));
+export function makeApp(getContent: () => Promise<Content>, getLessonText: (page: string) => Promise<string | undefined>) {
+  const mcp = createMcpHandler(() => makeServer(getContent, getLessonText));
 
   const endpoint = async (request: Request, env: Env) => {
     const key = request.headers.get('cf-connecting-ip') ?? 'unknown';

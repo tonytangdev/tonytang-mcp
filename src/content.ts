@@ -10,7 +10,7 @@
  */
 import { Clock, Data, Effect, Result, Schema } from 'effect';
 import { FetchHttpClient, HttpClient, HttpClientResponse } from 'effect/http';
-import type { Document, Locale } from './documents';
+import { LOCALES, SITE_DOCUMENT_TYPES, type Document, type Locale } from './documents';
 
 const CACHE_MS = 5 * 60 * 1000;
 const CACHE_SECONDS = CACHE_MS / 1000;
@@ -49,19 +49,15 @@ const Profile = Schema.Struct({
   ),
   links: Schema.Record(Schema.String, Schema.String),
 });
-export type Profile = typeof Profile.Type;
-
-const Lang = Schema.Literals(['en', 'fr']);
 
 const SiteFile = Schema.Struct({
   schemaVersion: Schema.Literal(1),
-  generatedAt: Schema.String,
   profile: Schema.Struct({ en: Profile, fr: Profile }),
   documents: Schema.Array(
     Schema.Struct({
       id: Schema.String,
-      lang: Lang,
-      type: Schema.Literals(['article', 'video', 'series', 'tool']),
+      lang: Schema.Literals(LOCALES),
+      type: Schema.Literals(SITE_DOCUMENT_TYPES),
       title: Schema.String,
       summary: Schema.String,
       url: Schema.String,

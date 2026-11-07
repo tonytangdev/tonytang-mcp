@@ -7,8 +7,6 @@ import { FetchHttpClient } from 'effect/http';
 import { makeApp } from './app';
 import { makeContentStore } from './content';
 
-export type { Env } from './app';
-
 const store = makeContentStore();
 const getContent = () => Effect.runPromise(store.get.pipe(Effect.provide(FetchHttpClient.layer)));
 

@@ -15,7 +15,7 @@ A public, read-only [MCP](https://modelcontextprotocol.io) server with informati
 - **Cloudflare Worker**, stateless, so any isolate can answer any request. It serves 2025 and 2026 protocol clients through the official [`@modelcontextprotocol/server`](https://www.npmjs.com/package/@modelcontextprotocol/server) SDK.
 - **Content comes from the sites, at read time.** The tonytang.dev build publishes `/mcp-content.json`, and the Worker reads it along with the CV and the course summary. [Effect](https://effect.website) handles fetching, schema validation and caching (`src/content.ts`). New content appears after a site rebuild, with no deploy here.
 - **No LLM.** Tools return source text with canonical links, and the assistant does the thinking.
-- **No stored questions.** Only one event per call, with the tool and client name (`src/usage.ts`). Addresses are used for rate limiting only.
+- **No stored questions.** Only one event per call, with the tool and a client category from a fixed list (`src/usage.ts`). Addresses are used for rate limiting only, and Workers Logs stay off.
 
 Effect also has its own MCP server, but its Workers transport only speaks the 2026 protocol, which would shut out clients that are still on 2025.
 

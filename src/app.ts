@@ -21,7 +21,7 @@ export type Env = {
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Accept, Mcp-Protocol-Version, Mcp-Method, Mcp-Name, Mcp-Session-Id',
   'Access-Control-Max-Age': '86400',
 };
@@ -30,9 +30,9 @@ const refuse = (status: number, message: string) =>
   Response.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message } }, { status });
 
 const withCors = (response: Response) => {
-  const open = new Response(response.body, response);
-  for (const [name, value] of Object.entries(CORS)) open.headers.set(name, value);
-  return open;
+  const mutable = new Response(response.body, response);
+  for (const [name, value] of Object.entries(CORS)) mutable.headers.set(name, value);
+  return mutable;
 };
 
 export function makeApp(getContent: () => Promise<Content>) {

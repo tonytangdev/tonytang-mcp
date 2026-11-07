@@ -65,6 +65,24 @@ describe('search', () => {
     expect(ids(docs, { query: 'ai' })).toEqual(['ai']);
   });
 
+  test('a two-letter term has to be the whole word, so "go" skips "got"', () => {
+    const docs = [doc({ id: 'got', title: 'Got it' }), doc({ id: 'go', title: 'Why Go' })];
+    expect(ids(docs, { query: 'go' })).toEqual(['go']);
+  });
+
+  test('a query with nothing searchable finds nothing, rather than everything', () => {
+    expect(search([doc({ id: 'a', title: 'Caching' })], { query: '???' })).toEqual({ results: [], total: 0 });
+  });
+
+  test('a language name stuck to punctuation only matches that word', () => {
+    expect(ids([doc({ id: 'caching', title: 'Caching' })], { query: 'c++' })).toEqual([]);
+  });
+
+  test('a long summary is shortened in results', () => {
+    const [result] = search([doc({ id: 'a', title: 'Caching', summary: 'word '.repeat(400) })], { query: 'caching' }).results;
+    expect(result?.summary.length).toBeLessThanOrEqual(301);
+  });
+
   test('each piece appears once, in the requested language', () => {
     const docs = [
       doc({ id: 'a', lang: 'en', title: 'Migration story' }),

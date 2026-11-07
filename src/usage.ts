@@ -1,10 +1,10 @@
 /**
  * Usage counts: one event per connection or tool call, with the tool and the
- * client's name. Nothing a person typed is kept: only values from a fixed list or
- * in the shape of a product name are stored, and arguments are never read.
+ * kind of client. Only values from the fixed lists below are stored, so
+ * nothing a caller writes can end up in the data, and arguments are never read.
  */
 const TOOLS = new Set(['get_profile', 'search', 'fetch']);
-const CLIENT_NAME = /^[\w.-]{1,40}$/;
+const KNOWN_CLIENTS = ['claude', 'chatgpt', 'openai', 'cursor', 'vscode', 'visual studio code', 'perplexity', 'gemini', 'copilot', 'windsurf', 'zed'];
 const CLIENT_INFO_KEY = 'io.modelcontextprotocol/clientInfo';
 
 type RpcMessage = {
@@ -14,8 +14,9 @@ type RpcMessage = {
 
 const clientOf = (message: RpcMessage) => {
   const name = message.params?.clientInfo?.name ?? message.params?._meta?.[CLIENT_INFO_KEY]?.name;
-  if (name === undefined) return 'unknown';
-  return typeof name === 'string' && CLIENT_NAME.test(name) ? name : 'other';
+  if (typeof name !== 'string') return 'unknown';
+  const lower = name.toLowerCase();
+  return KNOWN_CLIENTS.find((client) => lower.includes(client)) ?? 'other';
 };
 
 /** What to count for a request, if anything. */
@@ -26,13 +27,17 @@ function eventOf(message: RpcMessage): string | undefined {
   return typeof tool === 'string' && TOOLS.has(tool) ? tool : undefined;
 }
 
-export function countUsage(analytics: Pick<AnalyticsEngineDataset, 'writeDataPoint'>, body: string) {
-  let message: RpcMessage;
+const parse = (body: string): RpcMessage | undefined => {
   try {
-    message = JSON.parse(body);
+    const value: unknown = JSON.parse(body);
+    return typeof value === 'object' && value !== null ? value : undefined;
   } catch {
-    return;
+    return undefined;
   }
-  const event = eventOf(message);
-  if (event) analytics.writeDataPoint({ indexes: [event], blobs: [event, clientOf(message)], doubles: [1] });
+};
+
+export function countUsage(analytics: Pick<AnalyticsEngineDataset, 'writeDataPoint'>, body: string) {
+  const message = parse(body);
+  const event = message && eventOf(message);
+  if (message && event) analytics.writeDataPoint({ indexes: [event], blobs: [event, clientOf(message)], doubles: [1] });
 }

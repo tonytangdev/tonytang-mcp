@@ -7,12 +7,15 @@
  * finds an English-language request's article), and the result is always the
  * requested language if it exists, else whichever does.
  */
-import type { Document, DocumentType, Locale } from './documents';
+import { DEFAULT_LOCALE, type Document, type DocumentType, type Locale } from './documents';
 
 export const DEFAULT_LIMIT = 10;
 /** Cap on a document's text, in characters: stays well under what clients accept in one result. */
 export const MAX_TEXT_CHARS = 100_000;
 const SNIPPET_CHARS = 240;
+const SUMMARY_CHARS = 300;
+/** Shorter terms must be whole words: as prefixes they'd match nearly everything. */
+const MIN_PREFIX_CHARS = 3;
 
 const WEIGHT = { title: 5, summary: 3, text: 1 };
 /** Outweighs any total of field weights: a query's length is capped well under this. */
@@ -36,7 +39,10 @@ const normalize = (text: string) =>
 
 const words = (text: string) => normalize(text).match(/[\p{L}\p{N}]+/gu) ?? [];
 
-const mentions = (haystack: string[], term: string) => haystack.some((word) => word.startsWith(term));
+const mentions = (haystack: string[], term: string) =>
+  haystack.some((word) => (term.length < MIN_PREFIX_CHARS ? word === term : word.startsWith(term)));
+
+const shorten = (text: string) => (text.length > SUMMARY_CHARS ? `${text.slice(0, SUMMARY_CHARS)}…` : text);
 
 /** How well a document matches: how many terms it matches first, then field weights. */
 function score(document: Document, terms: string[]): number {
@@ -89,16 +95,16 @@ export type SearchRequest = {
 };
 
 export function search(documents: Document[], request: SearchRequest) {
-  const { type, lang = 'en', limit = DEFAULT_LIMIT } = request;
+  const { type, lang = DEFAULT_LOCALE, limit = DEFAULT_LIMIT } = request;
   const allTerms = [...new Set(words(request.query ?? ''))];
   const meaningful = allTerms.filter((term) => !FILLER.has(term));
   const terms = meaningful.length > 0 ? meaningful : allTerms;
+  if (request.query?.trim() && allTerms.length === 0) return { results: [], total: 0 };
   const candidates = groupById(type ? documents.filter((d) => d.type === type) : documents);
 
   const ranked =
     terms.length === 0
-      ? candidates
-          .map((variants) => ({ variants, rank: Date.parse(variants[0]?.published ?? '') || 0 }))
+      ? candidates.map((variants) => ({ variants, rank: Date.parse(variants[0]?.published ?? '') || 0 }))
       : candidates
           .map((variants) => ({ variants, rank: Math.max(...variants.map((v) => score(v, terms))) }))
           .filter(({ rank }) => rank > 0);
@@ -108,13 +114,13 @@ export function search(documents: Document[], request: SearchRequest) {
     const document = pick(variants, lang);
     if (!document) return [];
     const { text: _text, ...rest } = document;
-    return [{ ...rest, snippet: snippet(document, terms) }];
+    return [{ ...rest, summary: shorten(rest.summary), snippet: snippet(document, terms) }];
   });
   return { results, total: ranked.length };
 }
 
 export function getDocument(documents: Document[], request: { id: string; lang?: Locale | undefined }) {
-  const document = pick(documents.filter((d) => d.id === request.id), request.lang ?? 'en');
+  const document = pick(documents.filter((d) => d.id === request.id), request.lang ?? DEFAULT_LOCALE);
   if (!document) return undefined;
   return {
     ...document,

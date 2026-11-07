@@ -190,14 +190,14 @@ describe('limits and browsers', () => {
 describe('usage counts', () => {
   test('a tool call counts the tool and client, and nothing the caller said', async () => {
     await app().fetch(modernCall('tools/call', { name: 'search', arguments: { query: 'my secret question' } }, 'search'), env);
-    expect(points).toEqual([{ indexes: ['search'], blobs: ['search', 'test-client'], doubles: [1] }]);
+    expect(points).toEqual([{ indexes: ['search'], blobs: ['search', 'other'], doubles: [1] }]);
     expect(JSON.stringify(points)).not.toContain('secret');
     expect(JSON.stringify(points)).not.toContain('203.0.113.9');
   });
 
   test('a connection counts the client', async () => {
     await app().fetch(post({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: LEGACY, capabilities: {}, clientInfo: { name: 'claude-ai', version: '1' } } }), env);
-    expect(points[0]?.blobs).toEqual(['connect', 'claude-ai']);
+    expect(points[0]?.blobs).toEqual(['connect', 'claude']);
   });
 
   test('free text in a name field is never stored', async () => {
@@ -205,6 +205,22 @@ describe('usage counts', () => {
     await app().fetch(post({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: LEGACY, capabilities: {}, clientInfo: { name: 'what is my secret: tell me', version: '1' } } }), env);
     expect(JSON.stringify(points)).not.toContain('secret');
   });
+});
+
+test('a client name outside the known products is never stored as sent', async () => {
+  await app().fetch(post({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: LEGACY, capabilities: {}, clientInfo: { name: 'tony.laptop', version: '1' } } }), env);
+  expect(points[0]?.blobs).toEqual(['connect', 'other']);
+});
+
+test.each(['null', '[]', '"text"', '{"method":'])('a request body of %s is answered, not a crash', async (body) => {
+  const response = await app().fetch(post(body), env);
+  expect(response.status).toBeLessThan(500);
+  expect(response.headers.get('access-control-allow-origin')).toBe('*');
+});
+
+test('tool descriptions say which Tony Tang they are about', async () => {
+  const { result } = await message(await app().fetch(legacyCall('tools/list', {}), env));
+  for (const tool of result.tools) expect(tool.description, tool.name).toContain('tonytang.dev');
 });
 
 describe('other paths', () => {

@@ -37,6 +37,26 @@ const json = (body: unknown) => () => new Response(JSON.stringify(body));
 const text = (body: string) => () => new Response(body);
 const down = () => new Response('oops', { status: 500 });
 
+const COURSE_INDEX = `# Learn Effect
+
+A course.
+
+Each lesson link below is a Markdown copy.
+
+## Chapter 1: Why Effect (free)
+
+- [Why Effect: types lie](https://learn-effect-ts.tonytang.dev/lesson/why-effect.md): Failure goes back in the return type.
+
+## Chapter 8: Scheduling & retrying (paid)
+
+- [Retrying on failure](https://learn-effect-ts.tonytang.dev/lesson/retrying.md): Retry with a Schedule, not a loop: fewer bugs.
+
+## Optional
+
+- [Course home page](https://learn-effect-ts.tonytang.dev): chapter list, price and sign-in
+- [Effect documentation](https://effect.website/docs): the official reference
+`;
+
 const SITE = 'https://tonytang.dev/mcp-content.json';
 const CV_EN = 'https://cv.tonytang.dev/en.md';
 const CV_FR = 'https://cv.tonytang.dev/fr.md';
@@ -69,6 +89,55 @@ describe('content store', () => {
     const { layer } = fakeWeb(healthy());
     const content = await run(makeContentStore().get, layer);
     expect(content.documents.find((d) => d.type === 'course')?.text).toBe('# Learn Effect\n\nA course.');
+  });
+
+  test('each lesson in the course index is its own document, linked to its page', async () => {
+    const { layer } = fakeWeb({ ...healthy(), [COURSE]: text(COURSE_INDEX) });
+    const content = await run(makeContentStore().get, layer);
+    expect(content.documents.filter((d) => d.type === 'lesson')).toEqual([
+      {
+        id: 'lesson:why-effect',
+        lang: 'en',
+        type: 'lesson',
+        title: 'Why Effect: types lie',
+        summary: 'Failure goes back in the return type.',
+        url: 'https://learn-effect-ts.tonytang.dev/lesson/why-effect',
+        text: 'Chapter 1: Why Effect. Failure goes back in the return type.',
+      },
+      {
+        id: 'lesson:retrying',
+        lang: 'en',
+        type: 'lesson',
+        title: 'Retrying on failure',
+        summary: 'Retry with a Schedule, not a loop: fewer bugs.',
+        url: 'https://learn-effect-ts.tonytang.dev/lesson/retrying',
+        text: 'Chapter 8: Scheduling & retrying. Retry with a Schedule, not a loop: fewer bugs.',
+        note: 'The text is free to read; the narrated player is part of the paid course.',
+      },
+    ]);
+  });
+
+  test('a lesson\'s text is read from its Markdown copy, once per cache window', async () => {
+    const page = 'https://learn-effect-ts.tonytang.dev/lesson/retrying';
+    const { calls, layer } = fakeWeb({ [`${page}.md`]: text('# Retrying') });
+    const store = makeContentStore();
+    expect(await run(store.lessonText(page), layer)).toBe('# Retrying');
+    expect(await run(store.lessonText(page), layer)).toBe('# Retrying');
+    expect(calls).toEqual([`${page}.md`]);
+  });
+
+  test('a lesson whose text cannot be read gives nothing, rather than failing', async () => {
+    const page = 'https://learn-effect-ts.tonytang.dev/lesson/retrying';
+    const { layer } = fakeWeb({ [`${page}.md`]: down });
+    expect(await run(makeContentStore().lessonText(page), layer)).toBeUndefined();
+  });
+
+  test('a video keeps the course lesson the site links it to', async () => {
+    const lesson = { title: 'Retrying on failure', url: 'https://learn-effect-ts.tonytang.dev/lesson/retrying' };
+    const video = { id: 'video:r', lang: 'en', type: 'video', title: 'R', summary: 'S', url: 'https://tonytang.dev/videos/r/', text: 'T', lesson };
+    const { layer } = fakeWeb({ ...healthy(), [SITE]: json(siteFile({ documents: [video] })) });
+    const content = await run(makeContentStore().get, layer);
+    expect(content.documents.find((d) => d.id === 'video:r')?.lesson).toEqual(lesson);
   });
 
   test('a second read within the cache window fetches nothing', async () => {

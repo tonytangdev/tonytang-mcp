@@ -7,7 +7,8 @@
  * clients, so any isolate can answer anything.
  */
 import { createMcpHandler } from '@modelcontextprotocol/server';
-import type { Content } from './content';
+import type { Content, GetLessonText } from './content';
+import { ICON_PNG } from './icon';
 import { makeServer } from './server';
 import { countUsage } from './usage';
 
@@ -26,6 +27,8 @@ const CORS = {
   'Access-Control-Max-Age': '86400',
 };
 
+const ICON_HEADERS = { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' };
+
 const refuse = (status: number, message: string) =>
   Response.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message } }, { status });
 
@@ -35,8 +38,13 @@ const withCors = (response: Response) => {
   return mutable;
 };
 
-export function makeApp(getContent: () => Promise<Content>) {
-  const mcp = createMcpHandler(() => makeServer(getContent));
+const icon = (request: Request) =>
+  request.method === 'GET' || request.method === 'HEAD'
+    ? withCors(new Response(ICON_PNG, { headers: ICON_HEADERS }))
+    : new Response('Method not allowed', { status: 405, headers: { Allow: 'GET, HEAD' } });
+
+export function makeApp(getContent: () => Promise<Content>, getLessonText: GetLessonText) {
+  const mcp = createMcpHandler(() => makeServer(getContent, getLessonText));
 
   const endpoint = async (request: Request, env: Env) => {
     const key = request.headers.get('cf-connecting-ip') ?? 'unknown';
@@ -54,6 +62,7 @@ export function makeApp(getContent: () => Promise<Content>) {
     fetch: async (request: Request, env: Env): Promise<Response> => {
       const { pathname } = new URL(request.url);
       if (pathname === '/') return Response.redirect(INFO_PAGE, 302);
+      if (pathname === '/icon.png') return icon(request);
       if (pathname !== '/mcp') return new Response('Not found', { status: 404 });
       if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
       return withCors(await endpoint(request, env));

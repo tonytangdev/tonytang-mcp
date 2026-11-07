@@ -145,6 +145,26 @@ describe('search', () => {
   });
 });
 
+describe('course lessons', () => {
+  const lessons = ['a', 'b', 'c', 'd', 'e'].map((id) => doc({ id: `lesson:${id}`, type: 'lesson', title: 'Effect lesson' }));
+  const video = doc({ id: 'video:v', type: 'video', text: 'Effect, in passing.' });
+
+  test('a search shows at most three, so they leave room for everything else', () => {
+    const { results, total } = search([...lessons, video], { query: 'effect' });
+    expect(results.map((r) => r.id)).toEqual(['lesson:a', 'lesson:b', 'lesson:c', 'video:v']);
+    expect(total).toBe(4);
+  });
+
+  test('asking for lessons shows all of them', () => {
+    expect(ids(lessons, { query: 'effect', type: 'lesson' })).toHaveLength(5);
+  });
+
+  test('a topic finds the lesson that teaches it', () => {
+    const docs = [...lessons, doc({ id: 'lesson:retrying', type: 'lesson', title: 'Retrying on failure' })];
+    expect(ids(docs, { query: 'retry' })).toEqual(['lesson:retrying']);
+  });
+});
+
 describe('getDocument', () => {
   const variants = [
     doc({ id: 'a', lang: 'en', text: 'English.' }),

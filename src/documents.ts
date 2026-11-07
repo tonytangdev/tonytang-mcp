@@ -1,11 +1,11 @@
-/** What the server knows about: the content file's documents, plus the CV and course summary. */
+/** What the server knows about: the content file's documents, plus the CV, course summary and lessons. */
 export const LOCALES = ['en', 'fr'] as const;
 export type Locale = (typeof LOCALES)[number];
 export const DEFAULT_LOCALE: Locale = 'en';
 
 /** The types the site's content file carries; the CV and course come from their own sites. */
 export const SITE_DOCUMENT_TYPES = ['article', 'video', 'series', 'tool'] as const;
-export const DOCUMENT_TYPES = [...SITE_DOCUMENT_TYPES, 'cv', 'course'] as const;
+export const DOCUMENT_TYPES = [...SITE_DOCUMENT_TYPES, 'cv', 'course', 'lesson'] as const;
 export type DocumentType = (typeof DOCUMENT_TYPES)[number];
 
 export type Document = {
@@ -20,4 +20,6 @@ export type Document = {
   text: string;
   /** A caveat an assistant should keep in mind when using the text. */
   note?: string | undefined;
+  /** The Learn Effect lesson this piece teaches in full. */
+  lesson?: { title: string; url: string } | undefined;
 };

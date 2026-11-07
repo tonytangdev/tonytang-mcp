@@ -2,15 +2,26 @@ import { beforeEach, describe, expect, test } from 'vitest';
 import { makeApp, type Env } from '../src/app';
 import type { Content } from '../src/content';
 
+const LESSON_PAGE = 'https://learn-effect-ts.tonytang.dev/lesson/retrying';
+
 const content: Content = {
   profile: {
-    en: { name: 'Tony Tang', role: 'Head of Engineering', headline: 'H', lead: "I'm Tony.", story: ['Story.'], timeline: [], links: { email: 'tony@tonytang.dev' } },
+    en: {
+      name: 'Tony Tang',
+      role: 'Head of Engineering',
+      headline: 'H',
+      lead: "I'm Tony.",
+      story: ['Story.'],
+      timeline: [{ period: '2025–now', role: 'Head of Engineering', org: 'Fonts Ninja', lesson: 'A long story.' }],
+      links: { email: 'tony@tonytang.dev', website: 'https://tonytang.dev/', course: 'https://learn-effect-ts.tonytang.dev' },
+    },
     fr: { name: 'Tony Tang', role: 'Head of Engineering', headline: 'H', lead: 'Je suis Tony.', story: [], timeline: [], links: {} },
   },
   documents: [
     { id: 'article:zero-downtime', lang: 'en', type: 'article', title: 'Zero downtime migration', summary: 'S', url: 'https://tonytang.dev/articles/zero-downtime/', text: 'How we moved millions of records.' },
     { id: 'video:cache', lang: 'en', type: 'video', title: 'Cache stampede', summary: 'S', url: 'https://tonytang.dev/videos/cache/', text: 'Captions.', note: 'Auto-generated captions.' },
     { id: 'cv', lang: 'en', type: 'cv', title: 'CV', summary: 'S', url: 'https://cv.tonytang.dev/', text: '# The CV' },
+    { id: 'lesson:retrying', lang: 'en', type: 'lesson', title: 'Retrying on failure', summary: 'Retry well.', url: LESSON_PAGE, text: 'Chapter 8. Retry well.', note: 'Paid player.' },
   ],
 };
 
@@ -29,7 +40,12 @@ beforeEach(() => {
   };
 });
 
-const app = (getContent: () => Promise<Content> = async () => content) => makeApp(getContent);
+const lessonText = async (page: string) => (page === LESSON_PAGE ? '# Retrying, in full' : undefined);
+
+const app = (
+  getContent: () => Promise<Content> = async () => content,
+  getLessonText: (page: string) => Promise<string | undefined> = lessonText,
+) => makeApp(getContent, getLessonText);
 
 const LEGACY = '2025-06-18';
 const MODERN = '2026-07-28';
@@ -69,10 +85,10 @@ const modernCall = (method: string, params: object, name?: string) =>
 const legacyCall = (method: string, params: object) =>
   post({ jsonrpc: '2.0', id: 1, method, params }, { 'mcp-protocol-version': LEGACY });
 
-async function callTool(name: string, args: object, getContent?: () => Promise<Content>) {
-  const response = await app(getContent).fetch(modernCall('tools/call', { name, arguments: args }, name), env);
+async function callTool(name: string, args: object, getContent?: () => Promise<Content>, getLessonText?: (page: string) => Promise<string | undefined>) {
+  const response = await app(getContent, getLessonText).fetch(modernCall('tools/call', { name, arguments: args }, name), env);
   const { result } = await message(response);
-  return { isError: result.isError === true, text: result.content[0].text as string };
+  return { isError: result.isError === true, text: result.content[0].text as string, structuredContent: result.structuredContent };
 }
 
 const toolJson = async (name: string, args: object) => JSON.parse((await callTool(name, args)).text);
@@ -97,9 +113,70 @@ describe('both protocol eras', () => {
     expect(JSON.parse(result.content[0].text).name).toBe('Tony Tang');
   });
 
+  test('a 2025 client lists exactly the three tools', async () => {
+    const { result } = await message(await app().fetch(legacyCall('tools/list', {}), env));
+    expect(result.tools.map((tool: { name: string }) => tool.name).sort()).toEqual(['fetch', 'get_profile', 'search']);
+  });
+
   test('a 2026 client lists exactly the three tools', async () => {
     const { result } = await message(await app().fetch(modernCall('tools/list', {}), env));
     expect(result.tools.map((t: { name: string }) => t.name).sort()).toEqual(['fetch', 'get_profile', 'search']);
+  });
+});
+
+describe('profile card', () => {
+  const CARD = 'ui://tonytang/profile-card.html';
+  const eras = [
+    ['2025', (method: string, params: object) => legacyCall(method, params)],
+    ['2026', (method: string, params: object & { uri?: string }) => modernCall(method, params, params.uri)],
+  ] as const;
+
+  test.each(eras)('a %s client sees the card on get_profile, and only there', async (_, call) => {
+    const { result } = await message(await app().fetch(call('tools/list', {}), env));
+    const cards = result.tools.flatMap((tool: { name: string; _meta?: { ui?: { resourceUri?: string } } }) =>
+      tool._meta?.ui?.resourceUri ? [[tool.name, tool._meta.ui.resourceUri]] : [],
+    );
+    expect(cards).toEqual([['get_profile', CARD]]);
+  });
+
+  test.each(eras)('a %s client can read the card, which allows no outside domains', async (_, call) => {
+    const { result } = await message(await app().fetch(call('resources/read', { uri: CARD }), env));
+    const [resource] = result.contents;
+    expect(resource.mimeType).toBe('text/html;profile=mcp-app');
+    expect(resource.text).toMatch(/^<!doctype html>/i);
+    expect(resource._meta.ui.csp).toEqual({ connectDomains: [], resourceDomains: [] });
+    expect(resource._meta.ui.prefersBorder).toBe(true);
+  });
+
+  test('get_profile keeps its full text and adds what the card shows', async () => {
+    const { text, structuredContent } = await callTool('get_profile', {});
+    const { card, ...full } = structuredContent;
+    expect(full).toEqual(JSON.parse(text));
+    expect(full.cv).toBe('# The CV');
+    expect(full.timeline[0].lesson).toBe('A long story.');
+    expect(card).toEqual({
+      lang: 'en',
+      name: 'Tony Tang',
+      role: 'Head of Engineering',
+      headline: 'H',
+      careerHeading: 'Career',
+      timeline: [{ period: '2025–now', role: 'Head of Engineering', org: 'Fonts Ninja' }],
+      links: [
+        { label: 'Website', url: 'https://tonytang.dev/' },
+        { label: 'Videos', url: 'https://tonytang.dev/videos/' },
+        { label: 'Learn Effect', url: 'https://learn-effect-ts.tonytang.dev' },
+        { label: 'CV', url: 'https://cv.tonytang.dev/' },
+      ],
+    });
+  });
+
+  test('the card speaks French when asked', async () => {
+    const { structuredContent } = await callTool('get_profile', { lang: 'fr' });
+    expect(structuredContent.card.careerHeading).toBe('Parcours');
+    expect(structuredContent.card.links).toEqual([
+      { label: 'Vidéos', url: 'https://tonytang.dev/videos/' },
+      { label: 'CV', url: 'https://cv.tonytang.dev/fr/' },
+    ]);
   });
 });
 
@@ -132,6 +209,26 @@ describe('tools', () => {
   test('fetch returns the full text, its link and any caveat', async () => {
     const document = await toolJson('fetch', { id: 'video:cache' });
     expect(document).toMatchObject({ text: 'Captions.', url: 'https://tonytang.dev/videos/cache/', note: 'Auto-generated captions.' });
+  });
+
+  test('fetch returns a lesson in full, with its link and caveat', async () => {
+    const lesson = JSON.parse((await callTool('fetch', { id: 'lesson:retrying' })).text);
+    expect(lesson).toMatchObject({ text: '# Retrying, in full', url: LESSON_PAGE, note: 'Paid player.', truncated: false });
+  });
+
+  test('when a lesson cannot be read, fetch gives its summary and says so', async () => {
+    const { isError, text } = await callTool('fetch', { id: 'lesson:retrying' }, undefined, async () => undefined);
+    expect(isError).toBe(false);
+    const lesson = JSON.parse(text);
+    expect(lesson.text).toBe('Chapter 8. Retry well.');
+    expect(lesson.note).toBe('Paid player. The full lesson could not be read just now; this is only its summary, and the url has the rest.');
+  });
+
+  test('a video points to the lesson that teaches its subject', async () => {
+    const lesson = { title: 'Retrying on failure', url: LESSON_PAGE };
+    const documents = content.documents.map((d) => (d.id === 'video:cache' ? { ...d, lesson } : d));
+    const { results } = JSON.parse((await callTool('search', { query: 'cache' }, async () => ({ ...content, documents }))).text);
+    expect(results[0].lesson).toEqual(lesson);
   });
 
   test('fetch on an unknown id is a tool error that says what to do', async () => {
@@ -228,6 +325,27 @@ describe('other paths', () => {
     const response = await app().fetch(new Request('https://mcp.tonytang.dev/'), env);
     expect(response.status).toBe(302);
     expect(response.headers.get('location')).toBe('https://tonytang.dev/mcp/');
+  });
+
+  test('the icon is a real PNG, served from this origin', async () => {
+    const response = await app().fetch(new Request('https://mcp.tonytang.dev/icon.png'), env);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('image/png');
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    expect([...bytes.slice(1, 4)].map((b) => String.fromCharCode(b)).join('')).toBe('PNG');
+  });
+
+  test('web hosts can read the icon, which is only ever fetched', async () => {
+    const read = await app().fetch(new Request('https://mcp.tonytang.dev/icon.png'), env);
+    expect(read.headers.get('access-control-allow-origin')).toBe('*');
+    const write = await app().fetch(new Request('https://mcp.tonytang.dev/icon.png', { method: 'POST' }), env);
+    expect(write.status).toBe(405);
+  });
+
+  test('the server advertises the icon on its own origin first', async () => {
+    const initialize = legacyCall('initialize', { protocolVersion: LEGACY, capabilities: {}, clientInfo: { name: 'test-client', version: '1' } });
+    const { result } = await message(await app().fetch(initialize, env));
+    expect(result.serverInfo.icons[0]).toEqual({ src: 'https://mcp.tonytang.dev/icon.png', mimeType: 'image/png', sizes: ['192x192'] });
   });
 
   test('anything else is not found', async () => {

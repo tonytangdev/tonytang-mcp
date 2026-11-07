@@ -315,6 +315,11 @@ test.each(['null', '[]', '"text"', '{"method":'])('a request body of %s is answe
   expect(response.headers.get('access-control-allow-origin')).toBe('*');
 });
 
+test('tool descriptions say what a tool does, and never tell the assistant how to behave', async () => {
+  const { result } = await message(await app().fetch(modernCall('tools/list', {}), env));
+  for (const tool of result.tools) expect(tool.description, tool.name).not.toMatch(/\b(follow|always|never|must|you should)\b/i);
+});
+
 test('tool descriptions say which Tony Tang they are about', async () => {
   const { result } = await message(await app().fetch(legacyCall('tools/list', {}), env));
   for (const tool of result.tools) expect(tool.description, tool.name).toContain('tonytang.dev');

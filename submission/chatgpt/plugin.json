@@ -1,0 +1,114 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "tony-tang",
+  "version": "1.1.0",
+  "description": "Read Tony Tang's articles, video transcripts, CV and Effect lessons.",
+  "author": {
+    "name": "Tony Tang",
+    "email": "tony@tonytang.dev",
+    "url": "https://tonytang.dev/"
+  },
+  "homepage": "https://tonytang.dev/mcp/",
+  "repository": "https://github.com/tonytangdev/tonytang-mcp",
+  "license": "MIT",
+  "keywords": [
+    "engineering",
+    "typescript",
+    "effect"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Tony Tang",
+        "shortDescription": "Tony Tang's public work",
+        "longDescription": "Answers questions about Tony Tang, a software engineer in Paris, from his own published work: his background, career timeline and CV, his articles and video transcripts, and the lessons of his Effect course. Every answer links back to its public source. Intended for people who want to know his work, or what he says about a technical subject. Limitations: it covers only this Tony Tang's public work, and video transcripts come from automatic captions and can contain mistakes. It needs no login, changes nothing and keeps no questions.",
+        "developerName": "Tony Tang",
+        "category": "Education",
+        "capabilities": [
+          "Read his profile",
+          "Search his work",
+          "Read full documents"
+        ],
+        "websiteURL": "https://tonytang.dev/",
+        "supportURL": "https://tonytang.dev/mcp/",
+        "privacyPolicyURL": "https://tonytang.dev/privacy/",
+        "termsOfServiceURL": "https://tonytang.dev/terms/",
+        "defaultPrompt": [
+          "Who is Tony Tang?",
+          "What does Tony say about zero-downtime migrations?",
+          "What does Tony teach about retrying in Effect?"
+        ],
+        "brandColor": "#005B5D",
+        "brandColorDark": "#56BDBF",
+        "logo": "./assets/logo.png"
+      },
+      "review": {
+        "test_cases": {
+          "positive": [
+            {
+              "description": "Profile",
+              "prompt": "Who is Tony Tang, the software engineer behind tonytang.dev?",
+              "tools_triggered": "get_profile",
+              "expected_behavior": "Summarize his role and background from the profile. The profile card shows where UI is supported."
+            },
+            {
+              "description": "Article",
+              "prompt": "What does Tony Tang say about zero-downtime migrations?",
+              "tools_triggered": "search, fetch",
+              "expected_behavior": "Find his zero-downtime migration article and answer from it with a link to the source."
+            },
+            {
+              "description": "Course lesson",
+              "prompt": "How does Tony Tang teach retrying in Effect?",
+              "tools_triggered": "search, fetch",
+              "expected_behavior": "Find the lesson on retrying and answer from its text with a link to the lesson."
+            },
+            {
+              "description": "Availability",
+              "prompt": "Is Tony Tang open to freelance work?",
+              "tools_triggered": "get_profile",
+              "expected_behavior": "Report the availability stated in his CV and point to his contact links."
+            },
+            {
+              "description": "Not covered",
+              "prompt": "What does Tony Tang say about COBOL?",
+              "tools_triggered": "search",
+              "expected_behavior": "Search finds nothing. Say it is not covered rather than guessing."
+            }
+          ],
+          "negative": [
+            {
+              "description": "Unrelated question",
+              "prompt": "What is the capital of France?"
+            },
+            {
+              "description": "Unsupported purchase",
+              "prompt": "Buy the Learn Effect course for me."
+            },
+            {
+              "description": "Unsupported change",
+              "prompt": "Delete Tony Tang's article about migrations."
+            }
+          ]
+        },
+        "demo_recording_url": "REPLACE_WITH_RECORDING_URL",
+        "commerce": false,
+        "commerce_description": "This plugin does not sell products or process payments. Some answers link to the public page of a paid course."
+      },
+      "publication": {
+        "countries": [
+          "FR",
+          "GB",
+          "US"
+        ],
+        "release_notes": "Initial release: profile, search across his public work, full documents and a profile card.",
+        "translations": {
+          "fr-FR": {
+            "subtitle": "Le travail public de Tony Tang",
+            "description": "Répond aux questions sur Tony Tang, ingénieur logiciel à Paris, à partir de ce qu’il a publié : son parcours, son CV, ses articles, les transcriptions de ses vidéos et les leçons de sa formation Effect. Chaque réponse renvoie vers sa source publique. Limites : il couvre seulement le travail public de ce Tony Tang, et les transcriptions viennent de sous-titres automatiques qui peuvent contenir des erreurs. Il ne demande pas de compte, ne modifie rien et ne garde aucune question."
+          }
+        }
+      }
+    }
+  }
+}

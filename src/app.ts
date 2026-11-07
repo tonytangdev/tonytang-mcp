@@ -8,6 +8,7 @@
  */
 import { createMcpHandler } from '@modelcontextprotocol/server';
 import type { Content } from './content';
+import { ICON_PNG } from './icon';
 import { makeServer } from './server';
 import { countUsage } from './usage';
 
@@ -25,6 +26,8 @@ const CORS = {
   'Access-Control-Allow-Headers': 'Content-Type, Accept, Mcp-Protocol-Version, Mcp-Method, Mcp-Name, Mcp-Session-Id',
   'Access-Control-Max-Age': '86400',
 };
+
+const ICON_HEADERS = { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=86400' };
 
 const refuse = (status: number, message: string) =>
   Response.json({ jsonrpc: '2.0', id: null, error: { code: -32000, message } }, { status });
@@ -54,6 +57,7 @@ export function makeApp(getContent: () => Promise<Content>, getLessonText: (page
     fetch: async (request: Request, env: Env): Promise<Response> => {
       const { pathname } = new URL(request.url);
       if (pathname === '/') return Response.redirect(INFO_PAGE, 302);
+      if (pathname === '/icon.png') return new Response(ICON_PNG, { headers: ICON_HEADERS });
       if (pathname !== '/mcp') return new Response('Not found', { status: 404 });
       if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
       return withCors(await endpoint(request, env));

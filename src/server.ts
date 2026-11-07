@@ -47,7 +47,10 @@ export function makeServer(getContent: () => Promise<Content>, getLessonText: (p
       version: VERSION,
       websiteUrl: 'https://tonytang.dev/',
       description: 'Public information about Tony Tang, the software engineer behind tonytang.dev.',
-      icons: [{ src: 'https://tonytang.dev/favicon.svg', mimeType: 'image/svg+xml' }],
+      icons: [
+        { src: 'https://mcp.tonytang.dev/icon.png', mimeType: 'image/png', sizes: ['192x192'] },
+        { src: 'https://tonytang.dev/favicon.svg', mimeType: 'image/svg+xml' },
+      ],
     },
     { instructions: INSTRUCTIONS },
   );

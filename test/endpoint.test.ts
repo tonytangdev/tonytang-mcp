@@ -258,6 +258,20 @@ describe('other paths', () => {
     expect(response.headers.get('location')).toBe('https://tonytang.dev/mcp/');
   });
 
+  test('the icon is a real PNG, served from this origin', async () => {
+    const response = await app().fetch(new Request('https://mcp.tonytang.dev/icon.png'), env);
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toBe('image/png');
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    expect([...bytes.slice(1, 4)].map((b) => String.fromCharCode(b)).join('')).toBe('PNG');
+  });
+
+  test('the server advertises the icon on its own origin first', async () => {
+    const initialize = legacyCall('initialize', { protocolVersion: LEGACY, capabilities: {}, clientInfo: { name: 'test-client', version: '1' } });
+    const { result } = await message(await app().fetch(initialize, env));
+    expect(result.serverInfo.icons[0]).toEqual({ src: 'https://mcp.tonytang.dev/icon.png', mimeType: 'image/png', sizes: ['192x192'] });
+  });
+
   test('anything else is not found', async () => {
     const response = await app().fetch(new Request('https://mcp.tonytang.dev/nope'), env);
     expect(response.status).toBe(404);

@@ -5,11 +5,12 @@
  */
 import { McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
+import { CARD_HTML, CARD_META, CARD_MIME_TYPE, CARD_URI, profileCard } from './card';
 import type { Content } from './content';
 import { DEFAULT_LOCALE, DOCUMENT_TYPES, LOCALES } from './documents';
 import { DEFAULT_LIMIT, getDocument, search, withText } from './search';
 
-const VERSION = '1.0.0';
+const VERSION = '1.1.0';
 const MAX_QUERY_CHARS = 200;
 const MAX_LIMIT = 20;
 
@@ -64,12 +65,18 @@ export function makeServer(getContent: () => Promise<Content>, getLessonText: (p
       description:
         "Get the profile of Tony Tang, the software engineer behind tonytang.dev: current role, background, career timeline, contact links, and his full CV (including freelance availability) when available.",
       inputSchema: z.object({ lang: langInput }),
+      _meta: { ui: { resourceUri: CARD_URI } },
     },
     ({ lang = DEFAULT_LOCALE }) =>
-      withContent((content) =>
-        json({ ...content.profile[lang], cv: getDocument(content.documents, { id: 'cv', lang })?.text ?? null }),
-      ),
+      withContent((content) => ({
+        ...json({ ...content.profile[lang], cv: getDocument(content.documents, { id: 'cv', lang })?.text ?? null }),
+        structuredContent: profileCard(content.profile[lang], lang),
+      })),
   );
+
+  server.registerResource('Profile card', CARD_URI, { mimeType: CARD_MIME_TYPE, _meta: CARD_META }, async () => ({
+    contents: [{ uri: CARD_URI, mimeType: CARD_MIME_TYPE, text: CARD_HTML, _meta: CARD_META }],
+  }));
 
   server.registerTool(
     'search',

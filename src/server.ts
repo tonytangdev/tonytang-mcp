@@ -101,7 +101,7 @@ export function makeServer(getContent: () => Promise<Content>, getLessonText: Ge
     {
       ...readOnlyTool('Fetch a document'),
       description:
-        'Fetch one document from tonytang.dev and related sites in full, by the id from search: its text, link, and any note on how to use it. Follow notes when quoting.',
+        'Fetch one document from tonytang.dev and related sites in full, by the id from search: its text, link, and any note about it.',
       inputSchema: z.object({ id: z.string().max(MAX_QUERY_CHARS).describe('The id from a search result.'), lang: langInput }),
     },
     (request) =>
